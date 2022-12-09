@@ -140,15 +140,35 @@ KV921853.1	StringTie	exon	90325	90684	1000	+	.	gene_id "BCV72DRAFT_218780"; tran
 KV921853.1	StringTie	transcript	78870	81768	1000	+	.	gene_id "BCV72DRAFT_300342"; transcript_id "gnl|WGS:MCGZ|BCV72DRAFT_mRNA300342"; cov "82.708923"; FPKM "13.128287"; TPM "14.291849";
 ```
 
+Extract the alignment rate for each sample and save this in a new (temporary file) called rate.tmp
 
-#And extract the alignment rate for each sample and save this in a new (temporary file) called rate.tmp
-grep 'overall alignment rate' results.txt | cut -c -5 > rate.tmp
+`grep 'overall alignment rate' results.txt | cut -c -5 > rate.tmp`
 
-#get sample names into a file
-ls -1 *fastq | cut -c -11 | uniq > names.tmp
+Get sample names into a file
 
-#assign factors to each group
-echo cave shire cave shire shire cave | tr " " "\n" > group.tmp
+`ls -1 *fastq | cut -c -11 | uniq > names.tmp`
+
+Assign factors to each group
+
+`echo plasmid plasmid plasmid mutant mutant mutant wildtype wildtype wildtype | tr " " "\n" > group.tmp`
+
+Finally incorporate all this information into a single file. You can delete the `.tmp` file when you are done
+
+`paste names.tmp rate.tmp group.tmp > mapping.txt`
+
+Output:
+```
+SRR11651219     95.29   plasmid
+SRR11651220     95.07   plasmid
+SRR11651221     95.58   plasmid
+SRR11651222     95.26   mutant
+SRR11651223     95.53   mutant
+SRR11651224     95.14   mutant
+SRR11651225     94.87   wildtype
+SRR11651226     95.11   wildtype
+SRR11651227     94.79   wildtype
+```
+
 
 ls -1 *.gtf > samplelist.txt
 

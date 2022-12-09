@@ -194,4 +194,33 @@ Lets create a file containing the sample names for each `.gtf` file
 ls -1 *.gtf > samplelist.txt
 awk '{print "sample"NR, "\t", $0}' < samplelist.txt > Samples.txt
 ```
+Now we will obtain counts among all of our samples found in the  `.gtf` files and create a matrix. The prepDE.py is in the files section above.
+```
+prepDE.py -i Samples.txt
+```
+Output:
+```
+gene_count_matrix.csv
+transcript_count_matrix.csv
+```
+Create a file containing the sample names and their condition named `design.txt`.
+```
+sample condition
+sample1 plasmid
+sample2 plasmid
+sample3 plasmid
+sample4 mutant
+sample5 mutant
+sample6 mutant
+sample7 wildtype
+sample8 wildtype
+sample9 wildtype
+```
+
+
+
+
+
+
+
 

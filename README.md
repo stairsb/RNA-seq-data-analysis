@@ -169,8 +169,29 @@ SRR11651226     95.11   wildtype
 SRR11651227     94.79   wildtype
 ```
 
+## Mapping Rate
+This code will output a plot that shows us the mapping rate of each of the samples to the reference genome
+```
+mapping <- read.delim("mapping.txt",header=F)
+View(mapping)
+mapping$V1<-factor(mapping$V1, levels = mapping$V1[order(mapping$V3)])
 
+ggplot(mapping, aes(x=V1, y = V2, fill = V3)) +
+  geom_bar(stat = "identity") +
+  theme_bw() +
+  theme(axis.text = element_text(angle = 90)) +
+  ylab("Hisat2 Mapping Rate %") +
+  xlab("Sample") +
+  ylim(c(0,100)) +
+  scale_color_tron() +
+  scale_fill_tron() +
+  theme(legend.title = element_blank())
+```
+![image](https://user-images.githubusercontent.com/111078377/206634110-e921e5cf-a774-4e4a-9b40-a7890b064b7a.png)
+## Creating a gene count matrix
+Lets create a file containing the sample names for each `.gtf` file
+```
 ls -1 *.gtf > samplelist.txt
-
 awk '{print "sample"NR, "\t", $0}' < samplelist.txt > Samples.txt
+```
 

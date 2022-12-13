@@ -170,8 +170,9 @@ SRR11651227     94.79   wildtype
 ```
 
 ## Mapping Rate
-This code will output a plot that shows us the mapping rate of each of the samples to the reference genome
+This code will output a plot that shows us the mapping rate of each of the samples to the reference genome. If you don't have ggplot2 installed it is avaliable on the cran.
 ```
+library(ggplot2)
 mapping <- read.delim("mapping.txt",header=F)
 View(mapping)
 mapping$V1<-factor(mapping$V1, levels = mapping$V1[order(mapping$V3)])
@@ -216,10 +217,211 @@ sample7 wildtype
 sample8 wildtype
 sample9 wildtype
 ```
+## Installing R-packages
+If you don't have BiocManager installed then run the following code. 
+```
+if (!requireNamespace("BiocManager", quietly = TRUE)) install.packages("BiocManager")
+```
+Here are the packages found on BiocManager that you will needed to have installed. Only run the code below for the packages that you don't already have installed.
+```
+BiocManager::install("DESeq2")
+BiocManager::install("tximport")
+BiocManager::install("tximportData")
+```
+The packages below are ones that are found on cran. Only install ones that you don't already have installed.
+```
+install.packages("hexbin")
+install.packages("dplyr")
+install.packages("ggplot2")
+install.packages("readr")
+install.packages("adegenet")
+install.packages("pheatmap")
+install.packages("genefilter")
+install.packages("RColorBrewer")
+install.packages("ggsci")
+```
+Now we will load in all of the packages that we will be using (Note: you might already have ggplot2 loaded). 
+```
+library(DESeq2)
+library(tximportData)
+library(tximport)
+library(dplyr)
+library(ggplot2)
+library(hexbin)
+library(readr)
+```
+## Visualizing the data using DEseq2
+First we will read in the data from the files that we created above. The first line of code reads in a gene count matrix and the second contains the sample names we are using to investigate differential gene expression.
+```
+countData<- as.matrix(read.csv("gene_count_matrix.csv", row.names="gene_id"))
+colData <-read.table("design.txt", row.names = "sample", header = TRUE, sep = "")
+```
+Next we will put data into a DEseq object.
+```
+dds <- DESeqDataSetFromMatrix(countData = countData, colData = colData, design = ~ condition)
+```
+To lower the compuational tax load we will remove genes with 1 or less reads mapped to it since they won't be relivant in this analysis.
+```
+dds <-dds[ rowSums(counts(dds)) > 1, ]
+```
+Here we will transform the data using a "regularized-logarithm transformation" function that is part of DESeq2 which is recomended for small datasets.
+```
+rld <- rlog(dds)
+```
+As a checkin here is an example of what our transformed data should look like.
+```
+ head(assay(rld))
+ ```
+ Output:
+ ```
+                   sample1   sample2   sample3   sample4   sample5   sample6   sample7   sample8   sample9
+BCV72DRAFT_304378 11.575119 11.682836 11.628389 11.730588 11.705235 11.612698 11.756440 11.680450 11.495844
+BCV72DRAFT_240065  9.266680  8.238637  8.531259  8.092372  7.913480  7.941938  7.836073  7.786046  7.791481
+BCV72DRAFT_236859  3.801870  3.793351  3.775463  3.775711  3.794300  3.775648  3.843152  3.829419  3.865140
+BCV72DRAFT_249555 12.955227 12.919595 12.902062 12.926474 12.920059 12.907649 12.972063 12.909273 12.929597
+BCV72DRAFT_321890  1.767938  1.756862  1.769829  1.768753  1.763930  1.775355  1.756795  1.763003  1.756849
+BCV72DRAFT_329775  3.263824  3.257570  3.243970  3.240432  3.254201  3.249443  3.270572  3.243337  3.263488
+```
+We can compare the transfored data of 2 samples of our choosing using the following code.
+```
+df <-as.data.frame(assay(rld)[, 4:5])
+View(df)
+colnames(df)[1:2] <- c("Sample_4", "Sample_5") 
+```
+To plot our comparison of the two samples.
+```
+ggplot(df, aes(x = Sample_4, y = Sample_5)) + 
+  geom_hex(bins = 100, colour="orange", fill="black") + 
+  coord_fixed()+theme_classic()
+```
+![image](https://user-images.githubusercontent.com/111078377/207260881-a64664fc-0084-473e-91b2-04297a12ef7b.png)
 
+We could run `plotPCA(rld)` function to plot the data but first lets make some visual changes to the plot using ggplot2.
+Prepping the data:
+```
+library(ggsci)
+pca1<-plotPCA(rld, intgroup="condition",returnData=TRUE)
+percVar <- format(100 * attr(pca1, "percentVar"),digits=3) 
+```
+New plot:
+```
+ggplot(pca1, aes(PC1, PC2, colour=condition)) + 
+  geom_point(size=3) +
+  coord_fixed() +
+  scale_color_tron() +
+  scale_fill_tron() +
+  ggtitle("Reference Genome DGE Analysis")+
+  xlab(paste0("PC1: ",percVar[1],"% variance"))+
+  ylab(paste0("PC2: ",percVar[2],"% variance"))+
+  theme_classic()
+```
+![image](https://user-images.githubusercontent.com/111078377/207262649-b34bf570-9732-4cf3-a2ec-e318f680b14d.png)
 
+Create a loadings plot to visualize the genes which had the most variation. We can set a threshold to help capture genes of interest.
+```
+library(adegenet)
+t_rld<-t(assay((rld)))
+t_rld[1:3,1:4]
+pca<-prcomp(t_rld)
+loadings<-as.data.frame(pca$rotation)
+plot_load<-loadingplot(loadings$PC1,threshold = 0.1)
+```
+Using the names function we can check that out output names stored in the object `pca` look like this:
+```
+names(pca)
+"sdev" "rotation" "center" "scale" "x" 
+```
+Output plot:
+![image](https://user-images.githubusercontent.com/111078377/207264632-aab28e8b-0f3f-4e36-a495-483f57359619.png)
 
+Now we can grab the list of gene names for genes that are above out threshold.
+```
+row.names(dds)[plot_load$var.names]
+```
+## Differential Gene Expression Analysis
+Transforming the data (raw read counts) and fitting it to a statistical model.
+```
+dds <-DESeq(dds)
+```
+Extracting key information from the DESeq oject:
+```
+str(dds)
+res <- results(dds)
+head(res)
+mcols(res, use.names = TRUE)
+summary(res)
+```
+The function plotMA shows the log2 fold changes attributable to a given gene over the mean of normalized counts for all the samples. Points that are colored blue if their adjusted p value is less than 0.1. You can adjust the p-value threshold for graphing purposes, but let's just stick with the default for now. Points that exceed y-lim are plotted as open triangles. You might have to run the following code in your consol to be able to interact with the plot. Stop the interactive session once you have selection all of your points of interest.
+```
+plotMA( res, ylim = c(-10, 10))
+idx <- identify(res$baseMean, res$log2FoldChange)
+idx
+rownames(res)[idx]
+```
+![image](https://user-images.githubusercontent.com/111078377/207268308-8f131f5b-0d04-4537-b97b-37a6c2be276c.png)
 
+The `idx` variable cotains the row numbers for genes out interest that we found. The `327` in the function below correlates to one of the genes, we can visualize the expressions levels of this gene for each of the samples we included.
+```
+sigGene<-row.names(res[327,])
+plotCounts(dds, gene = sigGene)
+topVarGenes  <- head( order( rowVars( assay(rld) ), decreasing=TRUE ), 10 )
+```
+![image](https://user-images.githubusercontent.com/111078377/207269940-5a098708-8ad0-439a-a543-db3d5c214b3d.png)
+
+Finally, create a heatmap by looking at the amount each gene deviates in a specific sample from the gene’s average across all samples.
+```
+library(genefilter)
+library(pheatmap)
+library(RColorBrewer)
+mat  <- assay(rld)[ topVarGenes, ]
+condition = c("orange", "black","yellow")
+names(condition) = c("wiltype", "mutant", "plasmid")
+ann_colors = list(condition=condition)
+pheatmap(mat, annotation_col = colData, color=colorRampPalette(c( "blue","white", "red"))(20),annotation_colors =ann_colors[2],border_color = 'black',fontsize = 12,scale = "row",angle_col = 45)
+```
+![image](https://user-images.githubusercontent.com/111078377/207271563-7307bc18-e7f5-4327-912e-05f4334af917.png)
+
+Let's reorder the `res` data set based on adjusted p-values by descending order and save the top 20 most differentially expressed genes to a new file.
+```
+print(res)
+resOrdered <- res[order(res$pvalue),]
+resOrderedDF <-as.data.frame(resOrdered)[1:20, ]
+write.csv(resOrderedDF, file = "results_reference.csv")
+```
+To view the 20 gene names:
+```
+row.names(resOrderedDF)
+
+"BCV72DRAFT_76322"  "BCV72DRAFT_226884" "BCV72DRAFT_231122" "BCV72DRAFT_300595"
+"BCV72DRAFT_247525" "BCV72DRAFT_214971" "BCV72DRAFT_54254"  "BCV72DRAFT_61846" 
+"BCV72DRAFT_7021"   "BCV72DRAFT_227356" "BCV72DRAFT_293493" "BCV72DRAFT_298427"
+"BCV72DRAFT_54911"  "BCV72DRAFT_294654" "BCV72DRAFT_258870" "BCV72DRAFT_314435"
+"BCV72DRAFT_226292" "BCV72DRAFT_335919" "BCV72DRAFT_339250" "BCV72DRAFT_244019"
+```
+Copy the genes into a file named `topgenes.txt`
+```
+BCV72DRAFT_76322
+BCV72DRAFT_226884
+BCV72DRAFT_231122
+BCV72DRAFT_300595
+BCV72DRAFT_247525 
+BCV72DRAFT_214971 
+BCV72DRAFT_54254  
+BCV72DRAFT_61846 
+BCV72DRAFT_7021  
+BCV72DRAFT_227356 
+BCV72DRAFT_293493
+BCV72DRAFT_298427
+BCV72DRAFT_54911 
+BCV72DRAFT_294654
+BCV72DRAFT_258870
+BCV72DRAFT_314435
+BCV72DRAFT_226292
+BCV72DRAFT_335919 
+BCV72DRAFT_339250
+BCV72DRAFT_244019
+```
+The names for this example are specific to the example data used. These can be used to trace back the genes which where the most differentially expressed and figure out what functional proteins they produce.
 
 
 
